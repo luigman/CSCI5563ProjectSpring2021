@@ -2,6 +2,7 @@ from PIL import Image
 import numpy as np
 import os
 from pathlib import Path
+import cv2
 
 path_from = str(Path().absolute().parent) + "/shading_albedo/"
 path_reconstruct = str(Path().absolute()) + "/reconstructed_images/"
@@ -45,7 +46,17 @@ def recolor(img):
             else:
                 new_img[i][j][0] = 255
     new_img = np.uint8(new_img)
+    #new_img = hisEqulColor(new_img)
     return new_img
+
+def hisEqulColor(img):
+    #Histogram Equalization from https://stackoverflow.com/questions/15007304/histogram-equalization-not-working-on-color-image-opencv
+    ycrcb=cv2.cvtColor(img,cv2.COLOR_BGR2YCR_CB)
+    channels=cv2.split(ycrcb)
+    cv2.equalizeHist(channels[0],channels[0])
+    cv2.merge(channels,ycrcb)
+    cv2.cvtColor(ycrcb,cv2.COLOR_YCR_CB2BGR,img)
+    return img
 
 if __name__ == '__main__':
     # Read in files from shading and albedo folder
