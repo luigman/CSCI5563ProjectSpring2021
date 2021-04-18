@@ -26,10 +26,13 @@ def reconstruct(albedo_dict, shading_dict):
     return reconstructedimages, keys
 
 # recolor images
-def recolor(img):
-    green = (255/2.4)/np.mean(img[:, :, 1])
-    blue = (255/2.4)/np.mean(img[:, :, 2])
-    red = (255/2.4)/np.mean(img[:, :, 0])
+def recolor(img, orig_img):
+    green_mean = np.mean(orig_img[:, :, 1])
+    blue_mean = np.mean(orig_img[:, :, 2])
+    red_mean = np.mean(orig_img[:, :, 0])
+    green = green_mean/np.mean(img[:, :, 1])
+    blue = blue_mean/np.mean(img[:, :, 2])
+    red = red_mean/np.mean(img[:, :, 0])
     new_img = np.copy(img)
     for i in range(new_img.shape[0]):
         for j in range(new_img.shape[1]):

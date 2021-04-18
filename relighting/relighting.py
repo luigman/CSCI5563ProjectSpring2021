@@ -97,8 +97,8 @@ if __name__ == '__main__':
 
     for im in inputs:
         print("Processing image",im)
-        img1 = cv2.imread('input/'+im+'/albedo.jpg')
-        shading_gt = cv2.imread('input/'+im+'/shading.jpg')
+        img1 = cv2.imread('input/'+im+'/albedo.png')
+        shading_gt = cv2.imread('input/'+im+'/shading.png')
         shading_gt = cv2.cvtColor(shading_gt, cv2.COLOR_BGR2GRAY)
         
         shading_3 = np.zeros(img1.shape)
@@ -144,7 +144,7 @@ if __name__ == '__main__':
         cv2.imwrite('output/'+im+'/shading_gt.png', shading_gt)
 
         relit_gt = shading_gt/255*img1
-        relit_gt = recolor(relit_gt)
+        relit_gt = recolor(relit_gt, img1)
         cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt)
 
         for light in lights:
@@ -162,8 +162,8 @@ if __name__ == '__main__':
             cv2.imwrite('output/'+im+'/spec'+light+'_out.png', specular)
 
             relit = shading/255*img1
-            relit = recolor(relit)
+            relit = recolor(relit, img1)
             cv2.imwrite('output/'+im+'/relit_diff'+light+'.png', relit)
             relit = specular/255*img1
-            relit = recolor(relit)
+            relit = recolor(relit, img1)
             cv2.imwrite('output/'+im+'/relit_spec'+light+'.png', relit)
