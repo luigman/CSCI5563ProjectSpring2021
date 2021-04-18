@@ -1,0 +1,1 @@
+Running reconstruction.py creates images from the shading and albedo in the albedo_shading folder, saves the reconstructions in reconstructed_images, and saves the recolored reconstructed images in recolored_images

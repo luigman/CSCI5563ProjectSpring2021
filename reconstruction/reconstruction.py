@@ -25,7 +25,7 @@ def reconstruct(albedo_dict, shading_dict):
     return reconstructedimages, keys
 
 # recolor images
-def recolor(img, key):
+def recolor(img):
     green = (255/2.4)/np.mean(img[:, :, 1])
     blue = (255/2.4)/np.mean(img[:, :, 2])
     red = (255/2.4)/np.mean(img[:, :, 0])
@@ -45,9 +45,7 @@ def recolor(img, key):
             else:
                 new_img[i][j][0] = 255
     new_img = np.uint8(new_img)
-
-    new_img = Image.fromarray(new_img)
-    new_img.save(path_color + key + 'recoloredimg.jpg')
+    return new_img
 
 if __name__ == '__main__':
     # Read in files from shading and albedo folder
@@ -66,5 +64,7 @@ if __name__ == '__main__':
     reconstructedimages, keys = reconstruct(albedo_dict, shading_dict)
     # recolor images
     for i in range(len(keys)):
-        recolor(reconstructedimages[i], keys[i])
+        new_img = recolor(reconstructedimages[i])
+        new_img = Image.fromarray(new_img)
+        new_img.save(path_color + keys[i] + 'recoloredimg.jpg')
     
