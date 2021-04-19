@@ -17,8 +17,8 @@ def create_image(image_data):
         image = (image * 255.0).astype(np.uint8)
         image = image.transpose((1, 2, 0))
         image = np.squeeze(image)
-        plt.imshow(image)
-        plt.show()
+        #plt.imshow(image)
+        #plt.show()
     else:
         image = image_data
     pil_image = Image.fromarray(image)
