@@ -90,6 +90,39 @@ def convertSpec(spec):
     # plt.show()
     return spec
 
+def convertNormalsOld(nrm1):
+    #Convert normals to coordinate system from class
+    #(z away from camera, x to the right, y down)
+    nrm1 = nrm1[:,:,(1,0,2)]
+    nrm1 = (nrm1/127.5-1)
+    nrm1[:,:,:2] = -nrm1[:,:,:2]
+    return nrm1
+
+def convertNormalsGT(nrm1):
+    #Convert normals to coordinate system from class
+    #(z away from camera, x to the right, y down)
+    nrm1 = cv2.inpaint(nrm1,np.uint8((nrm1==0).all(axis=2)),3,cv2.INPAINT_TELEA)
+    nrm1 = nrm1[:,:,(2,1,0)]
+    nrm1 = (nrm1/127.5-1)
+    nrm1[:,:,:] = -nrm1[:,:,:]
+    return nrm1
+
+def convertNormalsNew(nrm1):
+    #Convert normals to coordinate system from class
+    #(z away from camera, x to the right, y down)
+    nrm1 = nrm1[:,:,(2,0,1)]
+    nrm1 = (nrm1/127.5-1)
+    nrm1[:,:,:2] = -nrm1[:,:,:2]
+    return nrm1
+
+def visualizeNormals(nrm1):
+    #convert from coordinates we used in class to
+    #the coorinates that the OLD network uses for visualization
+    nrm1vis = nrm1[:,:,(1,0,2)]
+    nrm1vis[:,:,:2] = -nrm1vis[:,:,:2]
+    nrm1vis = (nrm1vis+1)*127.5
+    plt.imshow(np.uint8(nrm1vis))
+    plt.show()
 
 if __name__ == '__main__':
     inputs = ['00004_00034_indoors_150_000', '00039_00294_outdoor_240_000', 'everet_dining1', 'main_d424-12', 'willow_basement_21']
@@ -108,23 +141,10 @@ if __name__ == '__main__':
         shading_gt = shading_3
 
         nrm1 = cv2.imread('input/'+im+'/normal.png')
-        nrm1 = cv2.inpaint(nrm1,np.uint8((nrm1==0).all(axis=2)),3,cv2.INPAINT_TELEA)
         #nrm1 = ndimage.uniform_filter(nrm1,size=3)
         nrm1 = cv2.resize(cv2.cvtColor(nrm1, cv2.COLOR_BGR2RGB), (img1.shape[1], img1.shape[0])) #not sure why this shape is backwards
-
-        #Convert normals to coordinate system from class
-        #(z away from camera, x to the right, y down)
-        nrm1 = nrm1[:,:,(1,0,2)]
-        nrm1 = (nrm1/127.5-1)
-        nrm1[:,:,:2] = -nrm1[:,:,:2]
-
-        #new network:
-        # nrm1 = nrm1[:,:,(2,0,1)]
-        # nrm1 = (nrm1/127.5-1)
-        # nrm1[:,:,:2] = -nrm1[:,:,:2]
-        # nrm1 = (nrm1+1)*127.5
-        # plt.imshow(np.uint8(nrm1))
-        # plt.show()
+        nrm1 = convertNormalsNew(nrm1)
+        #visualizeNormals(nrm1)
 
         # Approximate K
         f = 300
