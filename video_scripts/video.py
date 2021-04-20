@@ -19,6 +19,7 @@ from normal_weights.models import net as normal_net
 from config import BaseOptions
 
 print("Import Successful")
+print("PyTorch can see",torch.cuda.device_count(),"GPU(s). Current device:",torch.cuda.current_device())
 
 inst =  BaseOptions()
 parser = inst.parser
@@ -154,7 +155,7 @@ if __name__ == "__main__":
             #specular, spec_coverage = relight(albedo,spec, nrm1, K_apprx)
 
             relit_diff = (shading/255)*albedo
-            relit_diff = recolor(relit_diff,albedo)
+            relit_diff = recolor(relit_diff,img)
 
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
