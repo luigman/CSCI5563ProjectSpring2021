@@ -167,7 +167,7 @@ def SiMSE(img1,img2):
     best_SiMSE = np.Inf
 
     for a in a_list:
-        SiMSE = np.sum((img1-a*img2)**2)
+        SiMSE = np.sum((img1/255-a*img2/255)**2)
         if SiMSE < best_SiMSE:
             best_SiMSE = SiMSE
             best_a = a
@@ -186,7 +186,7 @@ def SiL2(img1,img2):
     best_SiL2 = np.Inf
 
     for a in a_list:
-        SiL2 = np.linalg.norm(img1-a*img2)
+        SiL2 = np.linalg.norm(img1/255-a*img2/255)
         if SiMSE < best_SiL2:
             best_SiL2 = SiL2
             best_a = a
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
         relit_gt = shading_gt/255*albedo
         relit_gt = recolor_normalize(relit_gt, original)
-        print("    Reconstructed Si-MSE:",round(SiMSE(relit_gt,original),2))
+        print("    Reconstructed Si-MSE:",round(SiMSE(relit_gt,original),5))
         cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt)
 
         for light in lights:
@@ -245,7 +245,7 @@ if __name__ == '__main__':
 
             relit = shading/255*albedo
             relit = recolor_normalize(relit, original)
-            print("    Si-MSE:",round(SiMSE(relit,original),2))
+            print("    Si-MSE:",round(SiMSE(relit,original),5))
             cv2.imwrite('output/'+im+'/relit_diff'+light+'.png', relit)
             relit = specular/255*albedo
             relit = recolor_normalize(relit, original)
