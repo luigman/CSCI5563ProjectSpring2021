@@ -142,7 +142,7 @@ def readImages():
     else:
         normal = cv2.imread('input/'+im+'/normal.jpg')
     shading_gt = cv2.cvtColor(shading_gt, cv2.COLOR_BGR2GRAY)
-    
+
     shading_3 = np.zeros(albedo.shape)
     shading_3[:,:,0] = shading_gt
     shading_3[:,:,1] = shading_gt
@@ -191,8 +191,10 @@ if __name__ == '__main__':
             diff = cv2.imread('input/lights/'+light+'_gray256.jpg')
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+            diff = ndimage.uniform_filter(diff,size=3)
 
             shading, texture_coverage = relight(albedo, diff, normal, K_apprx)
+            shading = recolor_normalize(shading, shading_gt)
             cv2.imwrite('output/'+im+'/shading'+light+'_out.png', shading)
             cv2.imwrite('output/'+im+'/textture_coverage.png', texture_coverage)
 

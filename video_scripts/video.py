@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.autograd import Variable
 from PIL import Image
-from reconstruction import recolor
+from reconstruction import *
 from relighting import *
 from direct_intrinsics_sn import DirectIntrinsicsSN
 from infer import main, set_experiment
@@ -113,10 +113,10 @@ if __name__ == "__main__":
         Calculate albedo, shading and normals
         """
 
-        albedo,shading = get_decomposition(img)
+        albedo,shading_gt = get_decomposition(img)
         albedo = np.asarray(albedo)
-        shading = np.asarray(shading)
-        shading = cv2.cvtColor(shading,cv2.COLOR_BGR2GRAY)
+        shading_gt = np.asarray(shading_gt)
+        shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
         normals = get_normals(img)
         lights = ['dir_0']
@@ -152,10 +152,11 @@ if __name__ == "__main__":
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
             shading, diff_coverage = relight(albedo,diff, nrm1, K_apprx)
+            shading = recolor_normalize(shading, shading_gt)
             #specular, spec_coverage = relight(albedo,spec, nrm1, K_apprx)
 
             relit_diff = (shading/255)*albedo
-            relit_diff = recolor(relit_diff,img)
+            relit_diff = recolor_normalize(relit_diff,img)
 
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
