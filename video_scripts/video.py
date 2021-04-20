@@ -128,7 +128,7 @@ if __name__ == "__main__":
         lights = ['dir_23']
         shading_3 = np.zeros_like(albedo)
         for i in range(3):
-            shading_3[:,:,i] = shading
+            shading_3[:,:,i] = shading_gt
         
         nrm1 = convertNormalsNew(normals)
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
             shading, diff_coverage = relight(albedo,diff, nrm1, K_apprx)
-            shading = recolor_normalize(shading, shading_gt)
+            shading = recolor_normalize(shading, shading_3)
             #specular, spec_coverage = relight(albedo,spec, nrm1, K_apprx)
 
             relit_diff = (shading/255)*albedo
