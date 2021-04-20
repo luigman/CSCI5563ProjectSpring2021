@@ -8,3 +8,4 @@ class BaseOptions():
         parser.add_argument("--normal_weights_loc",default="./normal_weights/ExpNYUD_three.ckpt")
         parser.add_argument("--cmap_file_loc",default="./normal_weights/cmap_nyud.npy")
         parser.add_argument("--output_file",default="relit_video.mp4")
+        parser.add_argument("--visualize",nargs='?', default=False, const=True)

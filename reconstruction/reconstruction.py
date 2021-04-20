@@ -33,6 +33,8 @@ def recolor_hist(img, orig_img):
     return new_img
 
 def recolor_normalize(img, orig_img):
+    img = img.astype(float)
+    orig_img = orig_img.astype(float)
     green_mean = np.mean(orig_img[:, :, 1])
     blue_mean = np.mean(orig_img[:, :, 2])
     red_mean = np.mean(orig_img[:, :, 0])

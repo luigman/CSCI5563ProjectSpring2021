@@ -55,7 +55,7 @@ def uvMapping1(n,u):
 
 def relight(img1, lgt2, nrm1, K_apprx):
     stride = 2
-    #lgt2 = ndimage.uniform_filter(lgt2+np.ones(lgt2.shape))#+0.001
+    lgt2 = ndimage.uniform_filter(lgt2,size=3)
     img2_out = np.zeros((img1.shape[0], img1.shape[1], 3))
     texture_coverage = np.zeros((256,256))
     for i in range(0,img1.shape[0], stride):
@@ -70,7 +70,7 @@ def relight(img1, lgt2, nrm1, K_apprx):
             img2_out[i:i+stride,j:j+stride] = lgt2[int(s_px),int(t_px)]
             texture_coverage[int(s_px),int(t_px)] = 255
             
-    return img2_out, texture_coverage
+    return img2_out.astype(np.uint8), texture_coverage
 
 def convertSpec(spec):
     #A rough approximation of what Isaac is doing
@@ -233,7 +233,6 @@ if __name__ == '__main__':
             diff = cv2.imread('input/lights/'+light+'_gray256.jpg')
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-            diff = ndimage.uniform_filter(diff,size=3)
 
             shading, texture_coverage = relight(albedo, diff, normal, K_apprx)
             shading = recolor_normalize(shading, shading_gt)

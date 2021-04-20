@@ -65,9 +65,13 @@ def get_decomposition(img):
     albedo_out = create_image(albedo)
     shading_out = create_image(shading)
 
+    aspect_ratio = img.shape[1]/img.shape[0]
+    albedo_out = albedo_out.resize((480,int(480/aspect_ratio)),Image.ANTIALIAS)
+    shading_out = shading_out.resize((480,int(480/aspect_ratio)),Image.ANTIALIAS)
+
     return albedo_out,shading_out
 
-def get_normals(img):
+def get_normals(img,out_shape):
     CMAP = np.load(opt.cmap_file_loc)
     DEPTH_COEFF = 5000. # to convert into metres
     HAS_CUDA = torch.cuda.is_available()
@@ -85,10 +89,13 @@ def get_normals(img):
     if HAS_CUDA:
         img_var = img_var.cuda()
     segm, depth, norm = model(img_var)
-    norm = cv2.resize(norm[0].cpu().data.numpy().transpose(1, 2, 0),img.shape[:2][::-1],interpolation=cv2.INTER_CUBIC)
+    norm = cv2.resize(norm[0].cpu().data.numpy().transpose(1, 2, 0),out_shape[:2][::-1],interpolation=cv2.INTER_CUBIC)
     out_norm = norm / np.linalg.norm(norm, axis=2, keepdims=True)
     return out_norm
 
+def visualize(albedo,shading_gt,normals,shading,relit):
+    #TODO
+    return
 
 if __name__ == "__main__":
 
@@ -114,24 +121,21 @@ if __name__ == "__main__":
         """
 
         albedo,shading_gt = get_decomposition(img)
+        #albedo,shading_gt = cv2.imread('../relighting/input/00004_00034_indoors_150_000/albedo.jpg'),cv2.imread('../relighting/input/00004_00034_indoors_150_000/shading.jpg')
         albedo = np.asarray(albedo)
         shading_gt = np.asarray(shading_gt)
         shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
-        normals = get_normals(img)
+        normals = get_normals(img,albedo.shape)
         lights = ['dir_0']
 
         """
         Relight Image
         """
-
-        lights = ['dir_23']
         shading_3 = np.zeros_like(albedo)
         for i in range(3):
             shading_3[:,:,i] = shading_gt
-        
-        nrm1 = convertNormalsNew(normals)
-
+        nrm1 = convertNormalsNew(127.5*(normals+1))
         # Approximate K
         f = 300
         fov_y = 36
@@ -151,12 +155,15 @@ if __name__ == "__main__":
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
-            shading, diff_coverage = relight(albedo,diff, nrm1, K_apprx)
-            shading = recolor_normalize(shading, shading_3)
+            shading_pre, diff_coverage = relight(albedo,diff, nrm1, K_apprx)
+            shading = recolor_normalize(shading_pre, shading_3)
             #specular, spec_coverage = relight(albedo,spec, nrm1, K_apprx)
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
+
+            if opt.visualize:
+                visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)
 
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
