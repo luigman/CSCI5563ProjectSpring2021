@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../reconstruction')
 sys.path.append('../relighting')
-#sys.path.append('../intrinsic_image_decomposition')
+sys.path.append('../intrinsic_image_decomposition/intrinseg')
 import cv2
 import numpy as np
 import copy
@@ -12,9 +12,9 @@ from torch.autograd import Variable
 from PIL import Image
 from reconstruction import recolor
 from relighting import *
-from intrinsic_image_decomposition.intrinseg.direct_intrinsics_sn import DirectIntrinsicsSN
-from intrinsic_image_decomposition.intrinseg.infer import main, set_experiment
-from intrinsic_image_decomposition.intrinseg.utils import Cuda, create_image
+from direct_intrinsics_sn import DirectIntrinsicsSN
+from infer import main, set_experiment
+from utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
 
