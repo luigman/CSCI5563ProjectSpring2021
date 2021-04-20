@@ -1,4 +1,5 @@
 from PIL import Image
+from skimage import exposure
 import numpy as np
 import os
 from pathlib import Path
@@ -26,6 +27,39 @@ def reconstruct(albedo_dict, shading_dict):
     return reconstructedimages, keys
 
 # recolor images
+def recolor_hist(img, orig_img):
+    multi = True if img.shape[-1] > 1 else False
+    new_img = exposure.match_histograms(img, orig_img, multichannel=multi)
+    return new_img
+
+def recolor_normalize(img, orig_img):
+    green_mean = np.mean(orig_img[:, :, 1])
+    blue_mean = np.mean(orig_img[:, :, 2])
+    red_mean = np.mean(orig_img[:, :, 0])
+    green_std = np.std(orig_img[:, :, 1])
+    blue_std = np.std(orig_img[:, :, 2])
+    red_std = np.std(orig_img[:, :, 0])
+    green_mean_new = np.mean(img[:, :, 1])
+    blue_mean_new = np.mean(img[:, :, 2])
+    red_mean_new = np.mean(img[:, :, 0])
+    green_std_new = np.std(img[:, :, 1])
+    blue_std_new = np.std(img[:, :, 2])
+    red_std_new = np.std(img[:, :, 0])
+    new_img = np.copy(img)
+
+    new_img[:,:,0] = (img[:,:,0]-red_mean_new)/red_std_new
+    new_img[:,:,1] = (img[:,:,1]-green_mean_new)/green_std_new
+    new_img[:,:,2] = (img[:,:,2]-blue_mean_new)/blue_std_new
+    new_img[:,:,0] = new_img[:,:,0]*red_std+red_mean
+    new_img[:,:,1] = new_img[:,:,1]*green_std+green_mean
+    new_img[:,:,2] = new_img[:,:,2]*blue_std+blue_mean
+    new_img[new_img>255]=255
+    new_img[new_img<0]=0
+
+    new_img = np.uint8(new_img)
+    #new_img = hisEqulColor(new_img)
+    return new_img
+
 def recolor(img, orig_img):
     green_mean = np.mean(orig_img[:, :, 1])
     blue_mean = np.mean(orig_img[:, :, 2])

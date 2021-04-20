@@ -5,7 +5,7 @@ from scipy import ndimage
 import os
 import sys
 sys.path.append('../reconstruction')
-from reconstruction import recolor
+from reconstruction import recolor,recolor_hist,recolor_normalize
 import matplotlib.pyplot as plt
 
 def uvMapping(n):
@@ -124,37 +124,55 @@ def visualizeNormals(nrm1):
     plt.imshow(np.uint8(nrm1vis))
     plt.show()
 
+def readImages():
+    if os.path.isfile('input/'+im+'/albedo.png'):
+        albedo = cv2.imread('input/'+im+'/albedo.png')
+    else:
+        albedo = cv2.imread('input/'+im+'/albedo.jpg')
+    if os.path.isfile('input/'+im+'/original.png'):
+        original = cv2.imread('input/'+im+'/original.png')
+    else:
+        original = cv2.imread('input/'+im+'/original.jpg')
+    if os.path.isfile('input/'+im+'/shading.png'):
+        shading_gt = cv2.imread('input/'+im+'/shading.png')
+    else:
+        shading_gt = cv2.imread('input/'+im+'/shading.jpg')
+    if os.path.isfile('input/'+im+'/normal.png'):
+        normal = cv2.imread('input/'+im+'/normal.png')
+    else:
+        normal = cv2.imread('input/'+im+'/normal.jpg')
+    shading_gt = cv2.cvtColor(shading_gt, cv2.COLOR_BGR2GRAY)
+    
+    shading_3 = np.zeros(albedo.shape)
+    shading_3[:,:,0] = shading_gt
+    shading_3[:,:,1] = shading_gt
+    shading_3[:,:,2] = shading_gt
+    shading_gt = shading_3
+
+    #normal = ndimage.uniform_filter(normal,size=3)
+    normal = cv2.resize(cv2.cvtColor(normal, cv2.COLOR_BGR2RGB), (albedo.shape[1], albedo.shape[0])) #not sure why this shape is backwards
+    normal = convertNormalsNew(normal)
+    #visualizeNormals(normal)
+    return albedo, original, shading_gt, normal
+
 if __name__ == '__main__':
     inputs = ['00004_00034_indoors_150_000', '00039_00294_outdoor_240_000', 'everet_dining1', 'main_d424-12', 'willow_basement_21']
     lights = ['dir_0','dir_2','dir_3','dir_5','dir_19','dir_22','dir_24']
 
     for im in inputs:
+        albedo, original, shading_gt, normal = readImages()
         print("Processing image",im)
-        img1 = cv2.imread('input/'+im+'/albedo.png')
-        shading_gt = cv2.imread('input/'+im+'/shading.png')
-        shading_gt = cv2.cvtColor(shading_gt, cv2.COLOR_BGR2GRAY)
         
-        shading_3 = np.zeros(img1.shape)
-        shading_3[:,:,0] = shading_gt
-        shading_3[:,:,1] = shading_gt
-        shading_3[:,:,2] = shading_gt
-        shading_gt = shading_3
-
-        nrm1 = cv2.imread('input/'+im+'/normal.png')
-        #nrm1 = ndimage.uniform_filter(nrm1,size=3)
-        nrm1 = cv2.resize(cv2.cvtColor(nrm1, cv2.COLOR_BGR2RGB), (img1.shape[1], img1.shape[0])) #not sure why this shape is backwards
-        nrm1 = convertNormalsNew(nrm1)
-        #visualizeNormals(nrm1)
 
         # Approximate K
         f = 300
         fov_y = 36
         fov_x = 52
-        fy = -img1.shape[0]/(2*np.tan(fov_y/2))
-        fx = img1.shape[1]/(2*np.tan(fov_x/2))
+        fy = -albedo.shape[0]/(2*np.tan(fov_y/2))
+        fx = albedo.shape[1]/(2*np.tan(fov_x/2))
         K_apprx = np.asarray([
-            [fx, 0, img1.shape[0]/2], #change to fx for non-cropped images
-            [0, fy, img1.shape[1]/2],
+            [fx, 0, albedo.shape[0]/2], #change to fx for non-cropped images
+            [0, fy, albedo.shape[1]/2],
             [0, 0, 1]
         ])
 
@@ -163,9 +181,9 @@ if __name__ == '__main__':
 
         cv2.imwrite('output/'+im+'/shading_gt.png', shading_gt)
 
-        relit_gt = shading_gt/255*img1
-        relit_gt = recolor(relit_gt, img1)
-        cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt)
+        relit_gt = shading_gt/255*albedo
+        relit_gt1 = recolor_normalize(relit_gt, original)
+        cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt1)
 
         for light in lights:
             print("    Processing light",light)
@@ -174,16 +192,16 @@ if __name__ == '__main__':
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-            shading, texture_coverage = relight(img1, diff, nrm1, K_apprx)
+            shading, texture_coverage = relight(albedo, diff, normal, K_apprx)
             cv2.imwrite('output/'+im+'/shading'+light+'_out.png', shading)
             cv2.imwrite('output/'+im+'/textture_coverage.png', texture_coverage)
 
-            specular, texture_coverage = relight(img1, spec, nrm1, K_apprx)
+            specular, texture_coverage = relight(albedo, spec, normal, K_apprx)
             cv2.imwrite('output/'+im+'/spec'+light+'_out.png', specular)
 
-            relit = shading/255*img1
-            relit = recolor(relit, img1)
+            relit = shading/255*albedo
+            relit = recolor_normalize(relit, original)
             cv2.imwrite('output/'+im+'/relit_diff'+light+'.png', relit)
-            relit = specular/255*img1
-            relit = recolor(relit, img1)
+            relit = specular/255*albedo
+            relit = recolor_normalize(relit, original)
             cv2.imwrite('output/'+im+'/relit_spec'+light+'.png', relit)
