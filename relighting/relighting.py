@@ -141,6 +141,8 @@ def readImages():
         normal = cv2.imread('input/'+im+'/normal.png')
     else:
         normal = cv2.imread('input/'+im+'/normal.jpg')
+
+    original = cv2.resize(original, (albedo.shape[1],albedo.shape[0]))
     shading_gt = cv2.cvtColor(shading_gt, cv2.COLOR_BGR2GRAY)
 
     shading_3 = np.zeros(albedo.shape)
@@ -154,6 +156,45 @@ def readImages():
     normal = convertNormalsNew(normal)
     #visualizeNormals(normal)
     return albedo, original, shading_gt, normal
+
+def SiMSE(img1,img2):
+    assert img1.shape == img2.shape
+    N_I = img1.shape[0]*img1.shape[1]
+    a_low = 0.5
+    a_high = 1.5
+    a_list = np.linspace(0.5,1.5,50)
+    best_a = 0
+    best_SiMSE = np.Inf
+
+    for a in a_list:
+        SiMSE = np.sum((img1-a*img2)**2)
+        if SiMSE < best_SiMSE:
+            best_SiMSE = SiMSE
+            best_a = a
+
+    if best_a == a_low or best_a == a_high:
+        print("Warning: a range of Si-MSE is too small. a value:",best_a)
+
+    return best_SiMSE / N_I
+
+def SiL2(img1,img2):
+    assert img1.shape == img2.shape
+    a_low = 0.5
+    a_high = 1.5
+    a_list = np.linspace(0.5,1.5,50)
+    best_a = 0
+    best_SiL2 = np.Inf
+
+    for a in a_list:
+        SiL2 = np.linalg.norm(img1-a*img2)
+        if SiMSE < best_SiL2:
+            best_SiL2 = SiL2
+            best_a = a
+
+    if best_a == a_low or best_a == a_high:
+        print("Warning: a range of Si-L2 is too small. a value:",best_a)
+
+    return best_SiL2
 
 if __name__ == '__main__':
     inputs = ['00004_00034_indoors_150_000', '00039_00294_outdoor_240_000', 'everet_dining1', 'main_d424-12', 'willow_basement_21']
@@ -182,8 +223,9 @@ if __name__ == '__main__':
         cv2.imwrite('output/'+im+'/shading_gt.png', shading_gt)
 
         relit_gt = shading_gt/255*albedo
-        relit_gt1 = recolor_normalize(relit_gt, original)
-        cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt1)
+        relit_gt = recolor_normalize(relit_gt, original)
+        print("    Reconstructed Si-MSE:",round(SiMSE(relit_gt,original),2))
+        cv2.imwrite('output/'+im+'/img_reconst.png', relit_gt)
 
         for light in lights:
             print("    Processing light",light)
@@ -203,6 +245,7 @@ if __name__ == '__main__':
 
             relit = shading/255*albedo
             relit = recolor_normalize(relit, original)
+            print("    Si-MSE:",round(SiMSE(relit,original),2))
             cv2.imwrite('output/'+im+'/relit_diff'+light+'.png', relit)
             relit = specular/255*albedo
             relit = recolor_normalize(relit, original)
