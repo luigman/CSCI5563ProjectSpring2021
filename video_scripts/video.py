@@ -1,4 +1,7 @@
 import sys
+sys.path.append('../reconstruction')
+sys.path.append('../relighting')
+#sys.path.append('../intrinsic_image_decomposition')
 import cv2
 import numpy as np
 import copy
@@ -15,6 +18,7 @@ from intrinsic_image_decomposition.intrinseg.utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
 
+print("Import Successful")
 
 inst =  BaseOptions()
 parser = inst.parser

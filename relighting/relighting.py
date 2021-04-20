@@ -53,7 +53,7 @@ def uvMapping1(n,u):
 
     return s_px, t_px
 
-def relight(img1, lgt2):
+def relight(img1, lgt2, nrm1, K_apprx):
     stride = 2
     #lgt2 = ndimage.uniform_filter(lgt2+np.ones(lgt2.shape))#+0.001
     img2_out = np.zeros((img1.shape[0], img1.shape[1], 3))
@@ -174,11 +174,11 @@ if __name__ == '__main__':
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-            shading, texture_coverage = relight(img1, diff)
+            shading, texture_coverage = relight(img1, diff, nrm1, K_apprx)
             cv2.imwrite('output/'+im+'/shading'+light+'_out.png', shading)
             cv2.imwrite('output/'+im+'/textture_coverage.png', texture_coverage)
 
-            specular, texture_coverage = relight(img1, spec)
+            specular, texture_coverage = relight(img1, spec, nrm1, K_apprx)
             cv2.imwrite('output/'+im+'/spec'+light+'_out.png', specular)
 
             relit = shading/255*img1
