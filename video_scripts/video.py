@@ -120,6 +120,20 @@ def loadDataset():
     
     return [item for sublist in img_list for item in sublist], lights_list
 
+def cropImage(img):
+    h, w, _ = img.shape
+        
+    desired_aspect_ratio = 480/352
+    aspect_ratio = w/h
+    if aspect_ratio<desired_aspect_ratio:
+        desired_width = w*aspect_ratio/desired_aspect_ratio
+    else:
+        desired_width = w/aspect_ratio*desired_aspect_ratio
+    wc = desired_width/2
+    img_crop = img[:,int(w/2-wc):int(w/2+wc)]
+    img_crop = cv2.resize(img,(480,352))
+    return img_crop
+
 if __name__ == "__main__":
     '''
         Load network weights
@@ -191,29 +205,20 @@ if __name__ == "__main__":
         
 
         #crop image to 480x352
-        h, w, _ = img.shape
-        
-        desired_aspect_ratio = 480/352
-        aspect_ratio = w/h
-        if aspect_ratio<desired_aspect_ratio:
-            desired_width = w*aspect_ratio/desired_aspect_ratio
-        else:
-            desired_width = w/aspect_ratio*desired_aspect_ratio
-        wc = desired_width/2
-        img = img[:,int(w/2-wc):int(w/2+wc)]
-        img = cv2.resize(img,(480,352))
+        img_crop = cropImage(img)
         
         """
         Calculate albedo, shading and normals
         """
 
-        albedo,shading_gt = get_decomposition(img,net)
+        albedo,shading_gt = get_decomposition(img_crop,net)
         #albedo,shading_gt = cv2.imread('../relighting/input/00004_00034_indoors_150_000/albedo.jpg'),cv2.imread('../relighting/input/00004_00034_indoors_150_000/shading.jpg')
         albedo = np.asarray(albedo)
         shading_gt = np.asarray(shading_gt)
         shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
         normals = get_normals(img,albedo.shape,model)
+        normals = cropImage(normals)
 
         """
         Relight Image
@@ -266,7 +271,7 @@ if __name__ == "__main__":
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
                 cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
 
-                loss.append(SiMSE(relit_diff,img))
+                loss.append(SiMSE(relit_diff,img_crop))
                 print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
             elif opt.image is not None:
                 path = os.path.join('output','images',img_name)
