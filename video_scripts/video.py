@@ -149,7 +149,7 @@ if __name__ == "__main__":
     """
 
     if opt.benchmark:
-        frame_list, lights = loadDataset()
+        frame_list, lights_list = loadDataset()
     else:
         lights = ['input/lights/dir_0','input/lights/dir_18']
         outputDir = os.path.join('output','videos')
@@ -239,9 +239,13 @@ if __name__ == "__main__":
             #relit_spec = recolor(relit_spec,albedo)
 
             if opt.benchmark:
-                path = os.path.join('output','multi_dataset',frame)
-                relit_diff = cv2.cvtColor(diff,cv2.COLOR_RGB2BGR)
-                cv2.imwrite(path,relit_diff)
+                scene, img_name = frame.split('/')[-2:]
+                img_name = img_name.split('.')[-2]
+                path = os.path.join('output','multi_dataset',scene,img_name)
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
+                cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
             else:
                 frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
                 packet = streams[i].encode(frame)
