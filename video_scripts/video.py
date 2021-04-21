@@ -31,16 +31,7 @@ IMG_STD = np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3))
 def prepare_img(img):
     return (img * IMG_SCALE - IMG_MEAN) / IMG_STD
 
-def get_decomposition(img):
-
-    net_in = ['rgb']
-    net_out = ['albedo','shading','segmentation']
-    normalize = True
-    net = DirectIntrinsicsSN(3,['color','color','class'])
-    net.load_state_dict(torch.load(opt.intrinseg_weights_loc))
-    cuda = Cuda(0)
-    net = net.cuda(device=cuda.device)
-    net.eval()
+def get_decomposition(img, net):
 
     copy_im = copy.deepcopy(img)
     pil_im = Image.fromarray(copy_im)
@@ -70,20 +61,7 @@ def get_decomposition(img):
 
     return albedo_out,shading_out
 
-def get_normals(img,out_shape):
-    CMAP = np.load(opt.cmap_file_loc)
-    DEPTH_COEFF = 5000. # to convert into metres
-    HAS_CUDA = torch.cuda.is_available()
-    MAX_DEPTH = 8.
-    MIN_DEPTH = 0.
-    NUM_CLASSES = 40
-    NUM_TASKS = 3 # segm + depth + normals
-    model = normal_net(num_classes=NUM_CLASSES, num_tasks=NUM_TASKS)
-    if HAS_CUDA:
-        _ = model.cuda()
-    _ = model.eval()
-    ckpt = torch.load(opt.normal_weights_loc)
-    model.load_state_dict(ckpt['state_dict'])
+def get_normals(img,out_shape,model):
     img_var = Variable(torch.from_numpy(prepare_img(img).transpose(2, 0, 1)[None]), requires_grad=False).float()
     if HAS_CUDA:
         img_var = img_var.cuda()
@@ -120,8 +98,8 @@ def loadDataset():
     Load the multiillumination dataset
 
     Returns:
-    frames_list: list of images to relight (shape numScenes x numProbes)
-    lights_list: list of lighting conditions (shape numScenes x numProbes)
+    frames_list: list of images to relight (shape numScenes*numProbes)
+    lights_list: list of lighting conditions (shape numScenes*numProbes x numProbes)
     '''
     dataset_dir = './input/multi_dataset'
     img_names = [name for name in os.listdir(dataset_dir)]
@@ -138,11 +116,38 @@ def loadDataset():
             light_filename = os.path.join(dataset_dir,img,'probes','dir_'+light_num)
             assert os.path.isfile(light_filename+'_gray256.jpg')
             light_filenames.append(light_filename)
-        lights_list.append(light_filenames)
+            lights_list.append(light_filenames)
     
     return [item for sublist in img_list for item in sublist], lights_list
 
 if __name__ == "__main__":
+    '''
+        Load network weights
+    '''
+    #Decomposition network
+    net_in = ['rgb']
+    net_out = ['albedo','shading','segmentation']
+    normalize = True
+    net = DirectIntrinsicsSN(3,['color','color','class'])
+    net.load_state_dict(torch.load(opt.intrinseg_weights_loc))
+    cuda = Cuda(0)
+    net = net.cuda(device=cuda.device)
+    net.eval()
+
+    #Normals network
+    CMAP = np.load(opt.cmap_file_loc)
+    DEPTH_COEFF = 5000. # to convert into metres
+    HAS_CUDA = torch.cuda.is_available()
+    MAX_DEPTH = 8.
+    MIN_DEPTH = 0.
+    NUM_CLASSES = 40
+    NUM_TASKS = 3 # segm + depth + normals
+    model = normal_net(num_classes=NUM_CLASSES, num_tasks=NUM_TASKS)
+    if HAS_CUDA:
+        _ = model.cuda()
+    _ = model.eval()
+    ckpt = torch.load(opt.normal_weights_loc)
+    model.load_state_dict(ckpt['state_dict'])
 
     """
     Open the video file and start frame-by-frame processing
@@ -150,6 +155,7 @@ if __name__ == "__main__":
     lights = ['input/lights/dir_0','input/lights/dir_18']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
+        loss = []
     elif opt.image is not None:
         frame_list = [os.path.join('input','images',opt.image)]
         lights_list = [lights]
@@ -201,13 +207,13 @@ if __name__ == "__main__":
         Calculate albedo, shading and normals
         """
 
-        albedo,shading_gt = get_decomposition(img)
+        albedo,shading_gt = get_decomposition(img,net)
         #albedo,shading_gt = cv2.imread('../relighting/input/00004_00034_indoors_150_000/albedo.jpg'),cv2.imread('../relighting/input/00004_00034_indoors_150_000/shading.jpg')
         albedo = np.asarray(albedo)
         shading_gt = np.asarray(shading_gt)
         shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
-        normals = get_normals(img,albedo.shape)
+        normals = get_normals(img,albedo.shape,model)
 
         """
         Relight Image
@@ -230,7 +236,7 @@ if __name__ == "__main__":
 
         for i,light in enumerate(lights_list[k]):
             if opt.benchmark and light.split('_')[-1] != light_num:
-                continue
+                continue #only run on matching lights
             print("Using light: %s" % (light) )
             spec = cv2.imread("%s_chrome256.jpg" % (light))
             diff = cv2.imread("%s_gray256.jpg" % (light))
@@ -250,12 +256,18 @@ if __name__ == "__main__":
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
 
+            '''
+            save image/video frame
+            '''
             if opt.benchmark:
                 path = os.path.join('output','multi_dataset',scene)
                 if not os.path.exists(path):
                     os.makedirs(path)
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
                 cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
+
+                loss.append(SiMSE(relit_diff,img))
+                print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
             elif opt.image is not None:
                 path = os.path.join('output','images',img_name)
                 if not os.path.exists(path):
