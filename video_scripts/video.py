@@ -116,22 +116,61 @@ def visualize(albedo,shading_gt,normals,shading_pre,shading,relit):
 
     return
 
+def loadDataset():
+    '''
+    Load the multiillumination dataset
+
+    Returns:
+    frames_list: list of images to relight (shape numScenes x numProbes)
+    lights_list: list of lighting conditions (shape numScenes x numProbes)
+    '''
+    dataset_dir = './input/multi_dataset'
+    img_names = [name for name in os.listdir(dataset_dir)]
+    img_list = []
+    lights_list = []
+    for img in img_names:
+        
+        img_filenames = [os.path.join(dataset_dir,img,name) for name in os.listdir(os.path.join(dataset_dir,img)) if name.endswith('mip2.jpg')]
+        
+        img_list.append(img_filenames)
+        light_filenames = []
+        for img_file in img_filenames:
+            light_num = img_file.split('_')[-2]
+            light_filename = os.path.join(dataset_dir,img,'probes','dir_'+light_num+'_gray256.jpg')
+            assert os.path.isfile(light_filename)
+            light_filenames.append(light_filename)
+        lights_list.append(light_filenames)
+    
+    return frames_list, lights_list
+
 if __name__ == "__main__":
 
     """
     Open the video file and start frame-by-frame processing
     """
 
-    output = av.open(opt.output_file,'w')
-    stream = output.add_stream('mpeg4',24)
-    stream.bit_rate = 8000000
+    if opt.benchmark:
+        frames_list, lights_list = loadDataset()
+    else:
+        lights = ['dir_0','dir_18']
+        outputs = []
+        streams = []
+        for i in range(len(lights)):
+            output = av.open(opt.output_file.split('.')[-2]+lights[i]+'.mp4','w')
+            stream = output.add_stream('mpeg4',24)
+            stream.bit_rate = 8000000
+            outputs.append(output)
+            streams.append(stream)
+        video = av.open('./input/videos/'+opt.video_name)
+        frame_list = video.decode(video=0)
 
-
-    video = av.open(opt.video_name)
+        lights_list = [] #(shape numScenes x numProbes)
+        for i in range(video.streams.video[0].frames):
+            lights_list.append(lights) 
 
     k = 0
 
-    for frame in video.decode(video=0):
+    for frame in frame_list:
         img = frame.to_image()
         img = np.asarray(img)
 
@@ -155,7 +194,6 @@ if __name__ == "__main__":
         shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
         normals = get_normals(img,albedo.shape)
-        lights = ['dir_0']
 
         """
         Relight Image
@@ -176,7 +214,7 @@ if __name__ == "__main__":
             [0, 0, 1]
         ])
 
-        for light in lights:
+        for i,light in enumerate(lights):
             print("Using light: %s" % (light) )
             spec = cv2.imread("input/lights/%s_chrome256.jpg" % (light))
             diff = cv2.imread("input/lights/%s_gray256.jpg" % (light))
@@ -195,13 +233,15 @@ if __name__ == "__main__":
 
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
+
+            frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
+            packet = streams[i].encode(frame)
+            outputs[i].mux(packet)
         print(k)
         k += 1
-        frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
-        packet = stream.encode(frame)
-        output.mux(packet)
-    
-    output.close()
+        
+    for output in outputs:
+        output.close()
     
 
 
