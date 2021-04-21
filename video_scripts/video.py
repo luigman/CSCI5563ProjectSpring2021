@@ -174,6 +174,9 @@ if __name__ == "__main__":
         if opt.benchmark:
             img = cv2.imread(frame)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+            scene, img_name = frame.split('/')[-2:]
+            img_name = img_name.split('.')[-2]
+            light_num = img_name.split('_')[-2]
         else:
             img = frame.to_image()
             img = np.asarray(img)
@@ -219,6 +222,8 @@ if __name__ == "__main__":
         ])
 
         for i,light in enumerate(lights_list[k]):
+            if opt.benchmark and light.split('_')[-1] != light_num:
+                continue
             print("Using light: %s" % (light) )
             spec = cv2.imread("%s_chrome256.jpg" % (light))
             diff = cv2.imread("%s_gray256.jpg" % (light))
@@ -239,9 +244,7 @@ if __name__ == "__main__":
             #relit_spec = recolor(relit_spec,albedo)
 
             if opt.benchmark:
-                scene, img_name = frame.split('/')[-2:]
-                img_name = img_name.split('.')[-2]
-                path = os.path.join('output','multi_dataset',scene,img_name)
+                path = os.path.join('output','multi_dataset',scene)
                 if not os.path.exists(path):
                     os.makedirs(path)
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
