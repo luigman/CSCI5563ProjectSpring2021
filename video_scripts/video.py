@@ -18,7 +18,6 @@ from utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
 
-print("Import Successful")
 print("PyTorch can see",torch.cuda.device_count(),"GPU(s). Current device:",torch.cuda.current_device())
 
 inst =  BaseOptions()
@@ -136,12 +135,12 @@ def loadDataset():
         light_filenames = []
         for img_file in img_filenames:
             light_num = img_file.split('_')[-2]
-            light_filename = os.path.join(dataset_dir,img,'probes','dir_'+light_num+'_gray256.jpg')
-            assert os.path.isfile(light_filename)
+            light_filename = os.path.join(dataset_dir,img,'probes','dir_'+light_num)
+            assert os.path.isfile(light_filename+'_gray256.jpg')
             light_filenames.append(light_filename)
         lights_list.append(light_filenames)
     
-    return frames_list, lights_list
+    return [item for sublist in img_list for item in sublist], lights_list
 
 if __name__ == "__main__":
 
@@ -150,13 +149,14 @@ if __name__ == "__main__":
     """
 
     if opt.benchmark:
-        frames_list, lights_list = loadDataset()
+        frame_list, lights = loadDataset()
     else:
-        lights = ['dir_0','dir_18']
+        lights = ['input/lights/dir_0','input/lights/dir_18']
+        outputDir = os.path.join('output','videos')
         outputs = []
         streams = []
         for i in range(len(lights)):
-            output = av.open(opt.output_file.split('.')[-2]+lights[i]+'.mp4','w')
+            output = av.open(os.path.join(outputDir,opt.output_file.split('.')[-2]+lights[i].split('_')[-1]+'.mp4'),'w')
             stream = output.add_stream('mpeg4',24)
             stream.bit_rate = 8000000
             outputs.append(output)
@@ -171,8 +171,12 @@ if __name__ == "__main__":
     k = 0
 
     for frame in frame_list:
-        img = frame.to_image()
-        img = np.asarray(img)
+        if opt.benchmark:
+            img = cv2.imread(frame)
+            img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+        else:
+            img = frame.to_image()
+            img = np.asarray(img)
 
         #crop image to 480x352
         h, w, _ = img.shape
@@ -214,10 +218,10 @@ if __name__ == "__main__":
             [0, 0, 1]
         ])
 
-        for i,light in enumerate(lights):
+        for i,light in enumerate(lights_list[k]):
             print("Using light: %s" % (light) )
-            spec = cv2.imread("input/lights/%s_chrome256.jpg" % (light))
-            diff = cv2.imread("input/lights/%s_gray256.jpg" % (light))
+            spec = cv2.imread("%s_chrome256.jpg" % (light))
+            diff = cv2.imread("%s_gray256.jpg" % (light))
             spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
@@ -234,16 +238,18 @@ if __name__ == "__main__":
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
 
-            frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
-            packet = streams[i].encode(frame)
-            outputs[i].mux(packet)
+            if opt.benchmark:
+                path = os.path.join('output','multi_dataset',frame)
+                relit_diff = cv2.cvtColor(diff,cv2.COLOR_RGB2BGR)
+                cv2.imwrite(path,relit_diff)
+            else:
+                frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
+                packet = streams[i].encode(frame)
+                outputs[i].mux(packet)
         print(k)
         k += 1
-        
-    for output in outputs:
-        output.close()
     
-
-
-        
-
+    if not opt.benchmark:
+        for output in outputs:
+            output.close()
+    
