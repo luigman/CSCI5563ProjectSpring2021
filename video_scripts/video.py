@@ -93,8 +93,27 @@ def get_normals(img,out_shape):
     out_norm = norm / np.linalg.norm(norm, axis=2, keepdims=True)
     return out_norm
 
-def visualize(albedo,shading_gt,normals,shading,relit):
-    #TODO
+def visualize(albedo,shading_gt,normals,shading_pre,shading,relit):
+    fig, axs = plt.subplots(1, 3)
+    axs[0].imshow(shading_gt, cmap='gray')
+    axs[0].title.set_text("Predicted Shading")
+    axs[1].imshow(shading_pre)
+    axs[1].title.set_text("Relit Shading")
+    axs[2].imshow(shading)
+    axs[2].title.set_text("Normalized Shading")
+    plt.show()
+
+    normals = visualizeNormals(normals)
+
+    fig, axs = plt.subplots(1, 3)
+    axs[0].imshow(albedo, cmap='gray')
+    axs[0].title.set_text("Predicted Albedo")
+    axs[1].imshow(normals, cmap='gray')
+    axs[1].title.set_text("Predicted Normals")
+    axs[2].imshow(relit, cmap='gray')
+    axs[2].title.set_text("Relit image")
+    plt.show()
+
     return
 
 if __name__ == "__main__":
@@ -161,7 +180,7 @@ if __name__ == "__main__":
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
-
+            
             if opt.visualize:
                 visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)
 

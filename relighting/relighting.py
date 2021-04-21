@@ -121,8 +121,7 @@ def visualizeNormals(nrm1):
     nrm1vis = nrm1[:,:,(1,0,2)]
     nrm1vis[:,:,:2] = -nrm1vis[:,:,:2]
     nrm1vis = (nrm1vis+1)*127.5
-    plt.imshow(np.uint8(nrm1vis))
-    plt.show()
+    return np.uint8(nrm1vis)
 
 def readImages():
     if os.path.isfile('input/'+im+'/albedo.png'):
