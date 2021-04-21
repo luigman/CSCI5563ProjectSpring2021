@@ -1,4 +1,3 @@
-input/videos
-input/multi_dataset
+input/
 output/
 *.mp4

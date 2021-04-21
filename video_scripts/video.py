@@ -147,11 +147,13 @@ if __name__ == "__main__":
     """
     Open the video file and start frame-by-frame processing
     """
-
+    lights = ['input/lights/dir_0','input/lights/dir_18']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
+    elif opt.image is not None:
+        frame_list = [os.path.join('input','images',opt.image)]
+        lights_list = [lights]
     else:
-        lights = ['input/lights/dir_0','input/lights/dir_18']
         outputDir = os.path.join('output','videos')
         outputs = []
         streams = []
@@ -171,7 +173,7 @@ if __name__ == "__main__":
     k = 0
 
     for frame in frame_list:
-        if opt.benchmark:
+        if opt.benchmark or (opt.image is not None):
             img = cv2.imread(frame)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             scene, img_name = frame.split('/')[-2:]
@@ -180,12 +182,17 @@ if __name__ == "__main__":
         else:
             img = frame.to_image()
             img = np.asarray(img)
+        
 
         #crop image to 480x352
         h, w, _ = img.shape
+        
         desired_aspect_ratio = 480/352
         aspect_ratio = w/h
-        desired_width = w/aspect_ratio*desired_aspect_ratio
+        if aspect_ratio<desired_aspect_ratio:
+            desired_width = w*aspect_ratio/desired_aspect_ratio
+        else:
+            desired_width = w/aspect_ratio*desired_aspect_ratio
         wc = desired_width/2
         img = img[:,int(w/2-wc):int(w/2+wc)]
         img = cv2.resize(img,(480,352))
@@ -249,6 +256,12 @@ if __name__ == "__main__":
                     os.makedirs(path)
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
                 cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
+            elif opt.image is not None:
+                path = os.path.join('output','images',img_name)
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
+                cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
             else:
                 frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
                 packet = streams[i].encode(frame)
@@ -256,7 +269,7 @@ if __name__ == "__main__":
         print(k)
         k += 1
     
-    if not opt.benchmark:
+    if not (opt.benchmark or opt.image is not None):
         for output in outputs:
             output.close()
     
