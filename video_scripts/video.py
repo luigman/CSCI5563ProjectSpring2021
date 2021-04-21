@@ -135,6 +135,15 @@ if __name__ == "__main__":
         img = frame.to_image()
         img = np.asarray(img)
 
+        #crop image to 480x352
+        h, w, _ = img.shape
+        desired_aspect_ratio = 480/352
+        aspect_ratio = w/h
+        desired_width = w/aspect_ratio*desired_aspect_ratio
+        wc = desired_width/2
+        img = img[:,int(w/2-wc):int(w/2+wc)]
+        img = cv2.resize(img,(480,352))
+        
         """
         Calculate albedo, shading and normals
         """
