@@ -17,6 +17,7 @@ from infer import main, set_experiment
 from utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
+from smoothing import average_frames
 
 print("PyTorch can see",torch.cuda.device_count(),"GPU(s). Current device:",torch.cuda.current_device())
 
@@ -176,7 +177,7 @@ if __name__ == "__main__":
     """
     Open the video file and start frame-by-frame processing
     """
-    lights = ['input/lights/dir_0','input/lights/dir_18']
+    lights = ['input/lights/dir_0']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
     elif opt.image is not None:
@@ -201,8 +202,8 @@ if __name__ == "__main__":
 
     k = 0
     loss = []
+    normals_list = []
     for frame in frame_list:
-        print(frame)
         if opt.benchmark or (opt.image is not None):
             img = cv2.imread(frame)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
@@ -225,9 +226,14 @@ if __name__ == "__main__":
             shading_3[:,:,i] = shading_gt
 
         normals = get_normals(img,albedo.shape,normalNet)
+        if not (opt.benchmark or opt.image is not None):
+            normals_list.append(normals)
+            normals = average_frames(normals_list[-4:])
+            normals = normals / np.linalg.norm(normals, axis=2, keepdims=True)
         nrm1 = convertNormalsNew(127.5*(normals+1))
+        
+        
         #normals = cropImage(normals)
-        print(np.mean([np.std(nrm1[:,:,0]),np.std(nrm1[:,:,1]),np.std(nrm1[:,:,2])]))
 
         """
         Relight Image
@@ -248,7 +254,6 @@ if __name__ == "__main__":
         for i,light in enumerate(lights_list[k]):
             if opt.benchmark and light.split('_')[-1] != light_num:
                 continue #only run on matching lights
-            print("Using light: %s" % (light) )
             diff = cv2.imread("%s_gray256.jpg" % (light))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
@@ -259,7 +264,7 @@ if __name__ == "__main__":
             relit_diff = recolor_normalize(relit_diff,img)
 
             loss.append(SiMSE(relit_diff,img))
-            print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
+            print("Frame:",k,"  Light:",light.split('_')[-1],"  Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
             
             if opt.visualize:
                 visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)
@@ -285,7 +290,6 @@ if __name__ == "__main__":
                 frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
                 packet = streams[i].encode(frame)
                 outputs[i].mux(packet)
-        print(k)
         k += 1
     
     if not (opt.benchmark or opt.image is not None):

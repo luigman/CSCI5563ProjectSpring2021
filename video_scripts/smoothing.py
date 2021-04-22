@@ -4,7 +4,7 @@ import cv2
 from pathlib import Path
 path_from = str(Path().absolute()) + "/smoothing_input/"
 
-def average_frames(frames):
+def average_frames_vid(frames):
     # pad each side by an empty frame
     pad = np.zeros(frames[0].shape)
     pad_frames = np.array([pad] + frames + [pad])
@@ -12,6 +12,12 @@ def average_frames(frames):
     #f_new = cv2.cvtColor(f_new, cv2.COLOR_BGR2RGB)
     return new_frames
 
+def average_frames(frames):
+    new_frame = np.zeros(frames[0].shape)
+    for i, frame in enumerate(frames):
+        new_frame = new_frame + frame
+    new_frame = new_frame / (i+1)
+    return new_frame
 
 def video_frames(video):
     cap = cv2.VideoCapture(video)
@@ -39,5 +45,5 @@ if __name__ == '__main__':
         if len(filename) == 2:
             name = 'smoothing_output/' + filename[0] + '_new.avi'
             frames = video_frames('smoothing_input/' + file)
-            new_frames = average_frames(frames)
+            new_frames = average_frames_vid(frames)
             write_video(new_frames, name)
