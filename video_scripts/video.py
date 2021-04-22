@@ -186,6 +186,7 @@ if __name__ == "__main__":
     Open the video file and start frame-by-frame processing
     """
     lights = ['input/lights/dir_0']
+    #lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
     elif opt.image is not None:
@@ -217,7 +218,8 @@ if __name__ == "__main__":
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             scene, img_name = frame.split('/')[-2:]
             img_name = img_name.split('.')[-2]
-            light_num = img_name.split('_')[-2]
+            if opt.image is None:
+                light_num = img_name.split('_')[-2]
         else:
             img = frame.to_image()
             img = np.asarray(img)
