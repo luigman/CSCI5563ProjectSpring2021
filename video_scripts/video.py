@@ -50,7 +50,10 @@ def initNetworks():
     return net, model
 
 def prepare_img(img):
-    return (img * IMG_SCALE - IMG_MEAN) / IMG_STD
+    img = img*IMG_SCALE
+    IMG_MEAN = np.mean(img, axis=(0,1)).reshape((1, 1, 3))
+    IMG_STD = np.std(img, axis=(0,1)).reshape((1, 1, 3))
+    return (img - IMG_MEAN) / IMG_STD
 
 def get_decomposition(img, net):
     net_in = ['rgb']
@@ -87,12 +90,17 @@ def get_decomposition(img, net):
     return albedo_out,shading_out
 
 def get_normals(img,out_shape,model):
+    NUM_CLASSES = 40
+    CMAP = np.load(opt.cmap_file_loc)
     HAS_CUDA = torch.cuda.is_available()
 
     img_var = Variable(torch.from_numpy(prepare_img(img).transpose(2, 0, 1)[None]), requires_grad=False).float()
     if HAS_CUDA:
         img_var = img_var.cuda()
     segm, depth, norm = model(img_var)
+    segm = segm[0, :NUM_CLASSES].cpu().data.numpy().transpose(1, 2, 0)
+    segm = CMAP[segm.argmax(axis=2) + 1].astype(np.uint8)
+
     norm = cv2.resize(norm[0].cpu().data.numpy().transpose(1, 2, 0),out_shape[:2][::-1],interpolation=cv2.INTER_CUBIC)
     out_norm = norm / np.linalg.norm(norm, axis=2, keepdims=True)
     return out_norm
@@ -194,6 +202,7 @@ if __name__ == "__main__":
     k = 0
     loss = []
     for frame in frame_list:
+        print(frame)
         if opt.benchmark or (opt.image is not None):
             img = cv2.imread(frame)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
@@ -218,6 +227,7 @@ if __name__ == "__main__":
         normals = get_normals(img,albedo.shape,normalNet)
         nrm1 = convertNormalsNew(127.5*(normals+1))
         #normals = cropImage(normals)
+        print(np.mean([np.std(nrm1[:,:,0]),np.std(nrm1[:,:,1]),np.std(nrm1[:,:,2])]))
 
         """
         Relight Image
@@ -243,7 +253,7 @@ if __name__ == "__main__":
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
             shading_pre, diff_coverage = relight(albedo, diff, nrm1, K_apprx)
-            shading = recolor_normalize(shading_pre, shading_3)
+            shading = recolor(shading_pre, shading_3)
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
