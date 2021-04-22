@@ -28,10 +28,36 @@ IMG_SCALE  = 1./255
 IMG_MEAN = np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3))
 IMG_STD = np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3))
 
+def initNetworks():
+    #Decomposition network
+    net = DirectIntrinsicsSN(3,['color','color','class'])
+    net.load_state_dict(torch.load(opt.intrinseg_weights_loc))
+    cuda = Cuda(0)
+    net = net.cuda(device=cuda.device)
+    net.eval()
+
+    #Normals network
+    HAS_CUDA = torch.cuda.is_available()
+    NUM_CLASSES = 40
+    NUM_TASKS = 3 # segm + depth + normals
+    model = normal_net(num_classes=NUM_CLASSES, num_tasks=NUM_TASKS)
+    if HAS_CUDA:
+        _ = model.cuda()
+    _ = model.eval()
+    ckpt = torch.load(opt.normal_weights_loc)
+    model.load_state_dict(ckpt['state_dict'])
+
+    return net, model
+
 def prepare_img(img):
     return (img * IMG_SCALE - IMG_MEAN) / IMG_STD
 
 def get_decomposition(img, net):
+    net_in = ['rgb']
+    net_out = ['albedo','shading','segmentation']
+    normalize = True
+    cuda = Cuda(0)
+
     copy_im = copy.deepcopy(img)
     pil_im = Image.fromarray(copy_im)
     resized_im = pil_im.resize((480,352),Image.ANTIALIAS)  # IntrinSeg network only accepts input of this size
@@ -54,13 +80,15 @@ def get_decomposition(img, net):
     albedo_out = create_image(albedo)
     shading_out = create_image(shading)
 
-    aspect_ratio = img.shape[1]/img.shape[0]
-    albedo_out = albedo_out.resize((480,int(480/aspect_ratio)),Image.ANTIALIAS)
-    shading_out = shading_out.resize((480,int(480/aspect_ratio)),Image.ANTIALIAS)
+    albedo_out = cv2.resize(np.asarray(albedo_out),(img.shape[1],img.shape[0]))
+    shading_out = cv2.resize(np.asarray(shading_out),(img.shape[1],img.shape[0]))
+    shading_out = cv2.cvtColor(shading_out,cv2.COLOR_BGR2GRAY)
 
     return albedo_out,shading_out
 
 def get_normals(img,out_shape,model):
+    HAS_CUDA = torch.cuda.is_available()
+
     img_var = Variable(torch.from_numpy(prepare_img(img).transpose(2, 0, 1)[None]), requires_grad=False).float()
     if HAS_CUDA:
         img_var = img_var.cuda()
@@ -135,33 +163,7 @@ def cropImage(img,w,h):
     return img_crop
 
 if __name__ == "__main__":
-    '''
-        Load network weights
-    '''
-    #Decomposition network
-    net_in = ['rgb']
-    net_out = ['albedo','shading','segmentation']
-    normalize = True
-    net = DirectIntrinsicsSN(3,['color','color','class'])
-    net.load_state_dict(torch.load(opt.intrinseg_weights_loc))
-    cuda = Cuda(0)
-    net = net.cuda(device=cuda.device)
-    net.eval()
-
-    #Normals network
-    CMAP = np.load(opt.cmap_file_loc)
-    DEPTH_COEFF = 5000. # to convert into metres
-    HAS_CUDA = torch.cuda.is_available()
-    MAX_DEPTH = 8.
-    MIN_DEPTH = 0.
-    NUM_CLASSES = 40
-    NUM_TASKS = 3 # segm + depth + normals
-    model = normal_net(num_classes=NUM_CLASSES, num_tasks=NUM_TASKS)
-    if HAS_CUDA:
-        _ = model.cuda()
-    _ = model.eval()
-    ckpt = torch.load(opt.normal_weights_loc)
-    model.load_state_dict(ckpt['state_dict'])
+    decompNet, normalNet = initNetworks()
 
     """
     Open the video file and start frame-by-frame processing
@@ -202,31 +204,25 @@ if __name__ == "__main__":
             img = frame.to_image()
             img = np.asarray(img)
         
-
-        #crop image to 480x352
         img = cropImage(img,640,480)
         
         """
         Calculate albedo, shading and normals
         """
 
-        albedo,shading_gt = get_decomposition(img,net)
-        albedo = cv2.resize(np.array(albedo),(img.shape[1],img.shape[0]))
-        shading_gt = cv2.resize(np.array(shading_gt),(img.shape[1],img.shape[0]))
-        albedo = np.asarray(albedo)
-        shading_gt = np.asarray(shading_gt)
-        shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
+        albedo,shading_gt = get_decomposition(img,decompNet)
+        shading_3 = np.zeros_like(albedo)
+        for i in range(3):
+            shading_3[:,:,i] = shading_gt
 
-        normals = get_normals(img,albedo.shape,model)
+        normals = get_normals(img,albedo.shape,normalNet)
+        nrm1 = convertNormalsNew(127.5*(normals+1))
         #normals = cropImage(normals)
 
         """
         Relight Image
         """
-        shading_3 = np.zeros_like(albedo)
-        for i in range(3):
-            shading_3[:,:,i] = shading_gt
-        nrm1 = convertNormalsNew(127.5*(normals+1))
+        
         # Approximate K
         f = 300
         fov_y = 36
@@ -243,20 +239,14 @@ if __name__ == "__main__":
             if opt.benchmark and light.split('_')[-1] != light_num:
                 continue #only run on matching lights
             print("Using light: %s" % (light) )
-            spec = cv2.imread("%s_chrome256.jpg" % (light))
             diff = cv2.imread("%s_gray256.jpg" % (light))
-            spec = convertSpec(np.array(spec))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
-            shading_pre, diff_coverage = relight(albedo,diff, nrm1, K_apprx)
+            shading_pre, diff_coverage = relight(albedo, diff, nrm1, K_apprx)
             shading = recolor_normalize(shading_pre, shading_3)
-            #specular, spec_coverage = relight(albedo,spec, nrm1, K_apprx)
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
-            
-            #relit_spec = (specular/255)*albedo
-            #relit_spec = recolor(relit_spec,albedo)
 
             loss.append(SiMSE(relit_diff,img))
             print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
@@ -280,6 +270,7 @@ if __name__ == "__main__":
                     os.makedirs(path)
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
                 cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
+
             else:
                 frame = av.VideoFrame.from_ndarray(relit_diff, format='rgb24')
                 packet = streams[i].encode(frame)
