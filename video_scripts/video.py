@@ -17,7 +17,7 @@ from infer import main, set_experiment
 from utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
-from smoothing import average_frames
+from smoothing import average_frames, average_frames_warp
 
 print("PyTorch can see",torch.cuda.device_count(),"GPU(s). Current device:",torch.cuda.current_device())
 
@@ -171,6 +171,14 @@ def cropImage(img,w,h):
     img_crop = cv2.resize(img_crop,(w,h))
     return img_crop
 
+def fillBorder(img):
+    borderSize = 11
+    img[0:borderSize,:] = img[borderSize,:]
+    img[:,0:borderSize] = img[:,borderSize].reshape((-1,1,3))
+    img[-borderSize:,:] = img[-borderSize,:]
+    img[:,-borderSize:,:] = img[:,-borderSize].reshape((-1,1,3))
+    return img
+
 if __name__ == "__main__":
     decompNet, normalNet = initNetworks()
 
@@ -225,13 +233,13 @@ if __name__ == "__main__":
         for i in range(3):
             shading_3[:,:,i] = shading_gt
 
-        normals = get_normals(img,albedo.shape,normalNet)
+        normals = 127.5*(get_normals(img,albedo.shape,normalNet)+1)
+        normals = fillBorder(normals)
         if not (opt.benchmark or opt.image is not None):
-            normals_list.append(normals)
-            normals = average_frames(normals_list[-4:])
-            normals = normals / np.linalg.norm(normals, axis=2, keepdims=True)
-        nrm1 = convertNormalsNew(127.5*(normals+1))
-        
+            normals_list.append(np.uint8(normals))
+            normals = average_frames(normals_list[-3:])
+        nrm1 = convertNormalsNew(normals)
+        nrm1 = nrm1 / np.linalg.norm(nrm1, axis=2, keepdims=True)
         
         #normals = cropImage(normals)
 
