@@ -32,7 +32,6 @@ def prepare_img(img):
     return (img * IMG_SCALE - IMG_MEAN) / IMG_STD
 
 def get_decomposition(img, net):
-
     copy_im = copy.deepcopy(img)
     pil_im = Image.fromarray(copy_im)
     resized_im = pil_im.resize((480,352),Image.ANTIALIAS)  # IntrinSeg network only accepts input of this size
@@ -120,18 +119,19 @@ def loadDataset():
     
     return [item for sublist in img_list for item in sublist], lights_list
 
-def cropImage(img):
-    h, w, _ = img.shape
+def cropImage(img,w,h):
+    h_img, w_img, _ = img.shape
         
-    desired_aspect_ratio = 480/352
-    aspect_ratio = w/h
+    desired_aspect_ratio = w/h
+    aspect_ratio = w_img/h_img
+
     if aspect_ratio<desired_aspect_ratio:
-        desired_width = w*aspect_ratio/desired_aspect_ratio
+        desired_width = w_img*aspect_ratio/desired_aspect_ratio
     else:
-        desired_width = w/aspect_ratio*desired_aspect_ratio
+        desired_width = w_img/aspect_ratio*desired_aspect_ratio
     wc = desired_width/2
-    img_crop = img[:,int(w/2-wc):int(w/2+wc)]
-    img_crop = cv2.resize(img,(480,352))
+    img_crop = img[:,int(w_img/2-wc):int(w_img/2+wc)]
+    img_crop = cv2.resize(img_crop,(w,h))
     return img_crop
 
 if __name__ == "__main__":
@@ -169,7 +169,6 @@ if __name__ == "__main__":
     lights = ['input/lights/dir_0','input/lights/dir_18']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
-        loss = []
     elif opt.image is not None:
         frame_list = [os.path.join('input','images',opt.image)]
         lights_list = [lights]
@@ -191,7 +190,7 @@ if __name__ == "__main__":
             lights_list.append(lights) 
 
     k = 0
-
+    loss = []
     for frame in frame_list:
         if opt.benchmark or (opt.image is not None):
             img = cv2.imread(frame)
@@ -205,20 +204,21 @@ if __name__ == "__main__":
         
 
         #crop image to 480x352
-        img_crop = cropImage(img)
+        img = cropImage(img,640,480)
         
         """
         Calculate albedo, shading and normals
         """
 
-        albedo,shading_gt = get_decomposition(img_crop,net)
-        #albedo,shading_gt = cv2.imread('../relighting/input/00004_00034_indoors_150_000/albedo.jpg'),cv2.imread('../relighting/input/00004_00034_indoors_150_000/shading.jpg')
+        albedo,shading_gt = get_decomposition(img,net)
+        albedo = cv2.resize(np.array(albedo),(img.shape[1],img.shape[0]))
+        shading_gt = cv2.resize(np.array(shading_gt),(img.shape[1],img.shape[0]))
         albedo = np.asarray(albedo)
         shading_gt = np.asarray(shading_gt)
         shading_gt = cv2.cvtColor(shading_gt,cv2.COLOR_BGR2GRAY)
 
         normals = get_normals(img,albedo.shape,model)
-        normals = cropImage(normals)
+        #normals = cropImage(normals)
 
         """
         Relight Image
@@ -255,11 +255,14 @@ if __name__ == "__main__":
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
             
-            if opt.visualize:
-                visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)
-
             #relit_spec = (specular/255)*albedo
             #relit_spec = recolor(relit_spec,albedo)
+
+            loss.append(SiMSE(relit_diff,img))
+            print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
+            
+            if opt.visualize:
+                visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)
 
             '''
             save image/video frame
@@ -271,8 +274,6 @@ if __name__ == "__main__":
                 relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
                 cv2.imwrite(os.path.join(path,light.split('/')[-1]+'.jpg'),relit_diff)
 
-                loss.append(SiMSE(relit_diff,img_crop))
-                print("Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
             elif opt.image is not None:
                 path = os.path.join('output','images',img_name)
                 if not os.path.exists(path):
