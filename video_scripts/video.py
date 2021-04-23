@@ -18,6 +18,7 @@ from utils import Cuda, create_image
 from normal_weights.models import net as normal_net
 from config import BaseOptions
 from smoothing import average_frames, average_frames_warp
+from scipy import ndimage
 
 print("PyTorch can see",torch.cuda.device_count(),"GPU(s). Current device:",torch.cuda.current_device())
 
@@ -132,7 +133,6 @@ def visualize(albedo,shading_gt,normals,shading_pre,shading,relit):
 def loadDataset():
     '''
     Load the multiillumination dataset
-
     Returns:
     frames_list: list of images to relight (shape numScenes*numProbes)
     lights_list: list of lighting conditions (shape numScenes*numProbes x numProbes)
@@ -155,6 +155,32 @@ def loadDataset():
             lights_list.append(light_filenames)
     
     return [item for sublist in img_list for item in sublist], lights_list
+
+def loadKinect(lights):
+    '''
+    Load the multiillumination dataset
+
+    Returns:
+    frames_list: list of images to relight (shape numScenes*numProbes)
+    lights_list: list of lighting conditions (shape numScenes*numProbes x numProbes)
+    '''
+    dataset_dir = './input/kinect'
+    img_names = [name for name in os.listdir(dataset_dir)]
+    img_list = []
+    lights_list = []
+    for img in img_names:
+        
+        img_filenames = [os.path.join(dataset_dir,img,name) for name in os.listdir(os.path.join(dataset_dir,img)) if 
+            (name.endswith('.jpg') or name.endswith('.png')) and not (name.endswith('thumb.jpg') or name.endswith('materials_mip2.png') or name[:7]=='normals')
+        ]
+        
+        img_list.append(img_filenames)
+        for img_file in img_filenames:
+            assert os.path.isfile(lights[0]+'_gray256.jpg')
+            lights_list.append(lights)
+    frames_list = [item for sublist in img_list for item in sublist]
+    frames_list.sort()
+    return frames_list, lights_list
 
 def cropImage(img,w,h):
     h_img, w_img, _ = img.shape
@@ -179,15 +205,28 @@ def fillBorder(img):
     img[:,-borderSize:,:] = img[:,-borderSize].reshape((-1,1,3))
     return img
 
+def loadImg(path):
+    '''
+    Support for multiple file types
+    '''
+    if os.path.isfile(path):
+        img_out = cv2.imread(path)
+    else:
+        print(path.split('.')[-2]+'.jpg')
+        img_out = cv2.imread(path.split('.')[-2]+'.jpg')
+    return img_out
+
 if __name__ == "__main__":
     decompNet, normalNet = initNetworks()
 
     """
     Open the video file and start frame-by-frame processing
     """
-    #lights = ['input/lights/dir_0']
-    lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
-    if opt.benchmark:
+    lights = ['input/lights/dir_0']
+    #lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
+    if opt.kinect:
+        frame_list, lights_list = loadKinect(lights)
+    elif opt.benchmark:
         frame_list, lights_list = loadDataset()
     elif opt.image is not None:
         frame_list = [os.path.join('input','images',opt.image)]
@@ -214,15 +253,17 @@ if __name__ == "__main__":
     normals_list = []
     for frame in frame_list:
         if opt.benchmark or (opt.image is not None):
-            img = cv2.imread(frame)
+            img = loadImg(frame)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             scene, img_name = frame.split('/')[-2:]
             img_name = img_name.split('.')[-2]
-            if opt.image is None:
+            if opt.image is None and not opt.kinect:
                 light_num = img_name.split('_')[-2]
         else:
             img = frame.to_image()
             img = np.asarray(img)
+        if opt.kinect:
+            img = np.uint8(np.clip(1.6*img, 0, 255)) #brighten kinect images
         
         img = cropImage(img,640,480)
         
@@ -236,10 +277,18 @@ if __name__ == "__main__":
             shading_3[:,:,i] = shading_gt
 
         if opt.gt_normals:
-            normals = cv2.imread(frame.split('.')[-2]+'_normal.jpg')
+            no_ext = frame.split('.')[-2]
+            name = no_ext.rstrip('0123456789')
+            img_num = no_ext[len(name):]
+            normal_path = os.path.join(*no_ext.split('/')[:-1])
+            normals = loadImg(normal_path+'/normals_vis'+img_num+'.png')
             normals = cv2.cvtColor(normals,cv2.COLOR_BGR2RGB)
             normals = cropImage(normals,640,480)
-            nrm1 = convertNormalsGT(normals)
+            if opt.kinect:
+                normals = ndimage.uniform_filter(normals,size=5)
+                normals_list.append(np.uint8(normals))
+                normals = average_frames(normals_list[-5:])
+            nrm1 = convertNormalsGT(np.uint8(normals))
         else:
             normals = 127.5*(get_normals(img,albedo.shape,normalNet)+1)
             normals = fillBorder(normals)
@@ -268,7 +317,7 @@ if __name__ == "__main__":
         ])
 
         for i,light in enumerate(lights_list[k]):
-            if opt.benchmark and light.split('_')[-1] != light_num:
+            if opt.benchmark and not opt.kinect and light.split('_')[-1] != light_num:
                 continue #only run on matching lights
             diff = cv2.imread("%s_gray256.jpg" % (light))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
@@ -279,7 +328,10 @@ if __name__ == "__main__":
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
 
-            loss.append(SiMSE(relit_diff,img))
+            if opt.kinect:
+                loss.append(SiMSE(relit_diff[135:340,135:480],img[135:340,135:480]))
+            else:
+                loss.append(SiMSE(relit_diff,img))
             print("Frame:",k,"  Light:",light.split('_')[-1],"  Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
             
             if opt.visualize:
@@ -288,7 +340,13 @@ if __name__ == "__main__":
             '''
             save image/video frame
             '''
-            if opt.benchmark:
+            if opt.kinect:
+                path = os.path.join('output','kinect',scene)
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                relit_diff = cv2.cvtColor(relit_diff,cv2.COLOR_RGB2BGR)
+                cv2.imwrite(os.path.join(path,img_name+'.jpg'),relit_diff)
+            elif opt.benchmark:
                 path = os.path.join('output','multi_dataset',scene)
                 if not os.path.exists(path):
                     os.makedirs(path)
