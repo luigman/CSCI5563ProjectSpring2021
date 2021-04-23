@@ -11,3 +11,4 @@ class BaseOptions():
         parser.add_argument("--output_file",default="relit_video.mp4")
         parser.add_argument("--visualize",nargs='?', default=False, const=True)
         parser.add_argument("--benchmark",nargs='?', default=False, const=True)
+        parser.add_argument("--gt_normals",nargs='?', default=False, const=True)

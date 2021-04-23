@@ -185,8 +185,8 @@ if __name__ == "__main__":
     """
     Open the video file and start frame-by-frame processing
     """
-    lights = ['input/lights/dir_0']
-    #lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
+    #lights = ['input/lights/dir_0']
+    lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
     if opt.benchmark:
         frame_list, lights_list = loadDataset()
     elif opt.image is not None:
@@ -235,12 +235,19 @@ if __name__ == "__main__":
         for i in range(3):
             shading_3[:,:,i] = shading_gt
 
-        normals = 127.5*(get_normals(img,albedo.shape,normalNet)+1)
-        normals = fillBorder(normals)
-        if not (opt.benchmark or opt.image is not None):
-            normals_list.append(np.uint8(normals))
-            normals = average_frames(normals_list[-3:])
-        nrm1 = convertNormalsNew(normals)
+        if opt.gt_normals:
+            normals = cv2.imread(frame.split('.')[-2]+'_normal.jpg')
+            print(frame.split('.')[-2]+'_normal.jpg')
+            normals = cv2.cvtColor(normals,cv2.COLOR_BGR2RGB)
+            normals = cropImage(normals,640,480)
+            nrm1 = convertNormalsGT(normals)
+        else:
+            normals = 127.5*(get_normals(img,albedo.shape,normalNet)+1)
+            normals = fillBorder(normals)
+            if not (opt.benchmark or opt.image is not None):
+                normals_list.append(np.uint8(normals))
+                normals = average_frames(normals_list[-3:])
+            nrm1 = convertNormalsNew(normals)
         nrm1 = nrm1 / np.linalg.norm(nrm1, axis=2, keepdims=True)
         
         #normals = cropImage(normals)
