@@ -237,7 +237,6 @@ if __name__ == "__main__":
 
         if opt.gt_normals:
             normals = cv2.imread(frame.split('.')[-2]+'_normal.jpg')
-            print(frame.split('.')[-2]+'_normal.jpg')
             normals = cv2.cvtColor(normals,cv2.COLOR_BGR2RGB)
             normals = cropImage(normals,640,480)
             nrm1 = convertNormalsGT(normals)

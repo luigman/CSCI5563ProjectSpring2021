@@ -62,8 +62,8 @@ def relight(img1, lgt2, nrm1, K_apprx):
         for j in range(0,img1.shape[1], stride):
             n = nrm1[i,j]
             n = n/np.linalg.norm(n)
-            u = np.linalg.inv(K_apprx)@np.array([i,j,1]) #Ray from camera center to u
-            u = u/np.linalg.norm(u)
+            #u = np.linalg.inv(K_apprx)@np.array([i,j,1]) #Ray from camera center to u
+            #u = u/np.linalg.norm(u)
             
             s_px, t_px = uvMapping(n)
 
