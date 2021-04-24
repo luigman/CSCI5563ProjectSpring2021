@@ -222,8 +222,12 @@ if __name__ == "__main__":
     """
     Open the video file and start frame-by-frame processing
     """
-    lights = ['input/lights/dir_0']
-    #lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
+    if opt.lighting is not None:
+        lights = ['input/lights/'+opt.lighting]
+    else:
+        #lights = ['input/lights/dir_0']
+        lights = ['input/lights/kinect1_adj']
+        #lights = ['input/lights/light_00','input/lights/light_01','input/lights/light_02','input/lights/light_03','input/lights/light_04','input/lights/light_05','input/lights/light_06']
     if opt.kinect:
         frame_list, lights_list = loadKinect(lights)
     elif opt.benchmark:
@@ -283,12 +287,16 @@ if __name__ == "__main__":
             normal_path = os.path.join(*no_ext.split('/')[:-1])
             normals = loadImg(normal_path+'/normals_vis'+img_num+'.png')
             normals = cv2.cvtColor(normals,cv2.COLOR_BGR2RGB)
+            for c in range(3):
+                print(np.min(normals[:,:,c]),np.max(normals[:,:,c]))
             normals = cropImage(normals,640,480)
             if opt.kinect:
                 normals = ndimage.uniform_filter(normals,size=5)
                 normals_list.append(np.uint8(normals))
                 normals = average_frames(normals_list[-5:])
-            nrm1 = convertNormalsGT(np.uint8(normals))
+                nrm1 = convertNormalsKinect(np.uint8(normals))
+            else:
+                nrm1 = convertNormalsGT(np.uint8(normals))
         else:
             normals = 127.5*(get_normals(img,albedo.shape,normalNet)+1)
             normals = fillBorder(normals)
@@ -319,11 +327,14 @@ if __name__ == "__main__":
         for i,light in enumerate(lights_list[k]):
             if opt.benchmark and not opt.kinect and light.split('_')[-1] != light_num:
                 continue #only run on matching lights
-            diff = cv2.imread("%s_gray256.jpg" % (light))
+            diff = loadImg("%s_gray256.png" % (light))
+            diff = cv2.resize(diff,(256,256))
             diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
             shading_pre, diff_coverage = relight(albedo, diff, nrm1, K_apprx)
             shading = recolor(shading_pre, shading_3)
+            # plt.imshow(diff_coverage)
+            # plt.show()
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
