@@ -212,9 +212,40 @@ def loadImg(path):
     if os.path.isfile(path):
         img_out = cv2.imread(path)
     else:
-        print(path.split('.')[-2]+'.jpg')
         img_out = cv2.imread(path.split('.')[-2]+'.jpg')
     return img_out
+
+def testVidIndices(img,vidName):
+    if vidName == 'IMG_0058.MOV':
+        return img[15:88,535:608]
+    elif vidName == 'IMG_0059.MOV':
+        return img[20:93,533:605]
+    elif vidName == 'IMG_0060.MOV':
+        return img[40:110,530:602]
+    elif vidName == 'IMG_0061.MOV':
+        return img[40:110,530:602]
+    elif vidName == 'IMG_0062.MOV':
+        return img[35:107,530:602]
+    elif vidName == 'IMG_0063.MOV':
+        return img[35:107,530:602]
+    elif vidName == 'IMG_0064.MOV':
+        return img[40:110,530:602]
+    elif vidName == 'IMG_0065.MOV':
+        return img[40:110,530:602]
+    elif vidName == 'IMG_0066.MOV':
+        return img[15:88,535:608]
+    elif vidName == 'IMG_0067.MOV':
+        return img[26:93,533:605]
+    elif vidName == 'IMG_0068.MOV':
+        return img[18:91,550:623]
+    elif vidName == 'IMG_0069.MOV':
+        return img[8:81,555:626]
+    elif vidName == 'IMG_0070.MOV':
+        return img[12:85,553:625]
+    elif vidName == 'IMG_0071.MOV':
+        return img[18:88,537:610]
+    else:
+        print("Invalid video")
 
 if __name__ == "__main__":
     decompNet, normalNet = initNetworks()
@@ -240,7 +271,7 @@ if __name__ == "__main__":
         outputs = []
         streams = []
         for i in range(len(lights)):
-            output = av.open(os.path.join(outputDir,opt.output_file.split('.')[-2]+lights[i].split('_')[-1]+'.mp4'),'w')
+            output = av.open(os.path.join(outputDir,opt.video_name.split('.')[-2]+lights[i].split('_')[-1]+'.mp4'),'w')
             stream = output.add_stream('mpeg4',24)
             stream.bit_rate = 8000000
             outputs.append(output)
@@ -254,7 +285,9 @@ if __name__ == "__main__":
 
     k = 0
     loss = []
+    loss_reconst = []
     normals_list = []
+    light_sphere_list = []
     for frame in frame_list:
         if opt.benchmark or (opt.image is not None):
             img = loadImg(frame)
@@ -287,8 +320,6 @@ if __name__ == "__main__":
             normal_path = os.path.join(*no_ext.split('/')[:-1])
             normals = loadImg(normal_path+'/normals_vis'+img_num+'.png')
             normals = cv2.cvtColor(normals,cv2.COLOR_BGR2RGB)
-            for c in range(3):
-                print(np.min(normals[:,:,c]),np.max(normals[:,:,c]))
             normals = cropImage(normals,640,480)
             if opt.kinect:
                 normals = ndimage.uniform_filter(normals,size=5)
@@ -327,23 +358,32 @@ if __name__ == "__main__":
         for i,light in enumerate(lights_list[k]):
             if opt.benchmark and not opt.kinect and light.split('_')[-1] != light_num:
                 continue #only run on matching lights
-            diff = loadImg("%s_gray256.png" % (light))
-            diff = cv2.resize(diff,(256,256))
-            diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
+            
+            if opt.gt_lighting:
+                diff = testVidIndices(img,opt.video_name)
+                diff = cv2.resize(diff,(256,256))
+                light_sphere_list.append(np.uint8(diff))
+                diff = average_frames(light_sphere_list[-5:])
+                diff = cv2.cvtColor(np.uint8(diff),cv2.COLOR_BGR2GRAY)
+                diff = np.clip(diff.astype(float)+100,0,255)
+            else:
+                diff = loadImg("%s_gray256.png" % (light))
+                diff = cv2.resize(diff,(256,256))
+                diff = cv2.cvtColor(diff,cv2.COLOR_BGR2GRAY)
 
             shading_pre, diff_coverage = relight(albedo, diff, nrm1, K_apprx)
             shading = recolor(shading_pre, shading_3)
-            # plt.imshow(diff_coverage)
-            # plt.show()
 
             relit_diff = (shading/255)*albedo
             relit_diff = recolor_normalize(relit_diff,img)
 
             if opt.kinect:
                 loss.append(SiMSE(relit_diff[135:340,135:480],img[135:340,135:480]))
+                loss_reconst.append(SiMSE(((shading_3/255)*albedo)[135:340,135:480],img[135:340,135:480]))
             else:
                 loss.append(SiMSE(relit_diff,img))
-            print("Frame:",k,"  Light:",light.split('_')[-1],"  Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)")
+                loss_reconst.append(SiMSE((shading_3/255)*albedo,img))
+            print("Frame:",k,"  Light:",light.split('_')[-1],"  Si-MSE:",round(loss[-1],5),"(current)",round(np.mean(loss),5),"(average)",round(np.mean(loss_reconst),5),"(reconstruction)")
             
             if opt.visualize:
                 visualize(albedo,shading_gt,nrm1,shading_pre,shading,relit_diff)

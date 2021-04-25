@@ -55,7 +55,7 @@ def uvMapping1(n,u):
 
 def relight(img1, lgt2, nrm1, K_apprx):
     stride = 2
-    lgt2 = ndimage.uniform_filter(lgt2,size=3)
+    lgt2 = ndimage.uniform_filter(lgt2,size=7)
     img2_out = np.zeros((img1.shape[0], img1.shape[1], 3))
     texture_coverage = np.zeros((256,256))
     for i in range(0,img1.shape[0], stride):
@@ -105,6 +105,14 @@ def convertNormalsGT(nrm1):
     nrm1 = nrm1[:,:,(2,1,0)]
     nrm1 = (nrm1/127.5-1)
     nrm1[:,:,:] = -nrm1[:,:,:]
+    return nrm1
+
+def convertNormalsKinect(nrm1):
+    #Convert normals to coordinate system from class
+    #(z away from camera, x to the right, y down)
+    nrm1 = nrm1[:,:,(1,2,0)]
+    nrm1 = (nrm1/127.5-1)
+    nrm1[:,:,2] = -nrm1[:,:,2]
     return nrm1
 
 def convertNormalsNew(nrm1):

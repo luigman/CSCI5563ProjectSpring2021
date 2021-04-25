@@ -13,4 +13,5 @@ class BaseOptions():
         parser.add_argument("--visualize",nargs='?', default=False, const=True)
         parser.add_argument("--benchmark",nargs='?', default=False, const=True)
         parser.add_argument("--gt_normals",nargs='?', default=False, const=True)
+        parser.add_argument("--gt_lighting",nargs='?', default=False, const=True)
         parser.add_argument("--kinect",nargs='?', default=False, const=True)
